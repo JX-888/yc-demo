@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>洋葱素材库</title>
+    <link rel="stylesheet" href="styles.css?v=20260822-hybrid-search" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">
+            <img src="assets/onion-avatar.png" alt="" />
+          </div>
+          <div>
+            <div class="brand-name">洋葱素材库</div>
+            <div class="brand-subtitle">Feishu Knowledge Base</div>
+          </div>
+        </div>
+        <nav class="nav-list" aria-label="主导航">
+          <button class="nav-item active" data-view="search" type="button">
+            <span class="icon" data-icon="search"></span>
+            <span>素材搜索</span>
+          </button>
+          <button class="nav-item" data-view="upload" type="button">
+            <span class="icon" data-icon="upload"></span>
+            <span>上传入库</span>
+          </button>
+          <button class="nav-item" data-view="queue" type="button">
+            <span class="icon" data-icon="activity"></span>
+            <span>分析队列</span>
+          </button>
+        </nav>
+        <div class="sync-panel">
+          <div class="sync-row">
+            <span>知识库</span>
+            <strong id="sidebarTotal">0</strong>
+          </div>
+          <div class="sync-row">
+            <span>待分析</span>
+            <strong id="sidebarPending">0</strong>
+          </div>
+          <div class="sync-status">每 10 分钟批处理</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1 id="pageTitle">素材搜索</h1>
+            <p id="pageSubtitle">输入需求或选择标签，快速找到可复用的微信截图素材。</p>
+          </div>
+          <div class="top-actions">
+            <button class="ghost-button" id="simulateAnalysisBtn" type="button">
+              <span class="icon" data-icon="spark"></span>
+              <span>分析待处理</span>
+            </button>
+            <button class="primary-button" data-switch="upload" type="button">
+              <span class="icon" data-icon="plus"></span>
+              <span>新增素材</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="view active" id="searchView">
+          <div class="search-band">
+            <div class="search-input-wrap">
+              <span class="icon" data-icon="search"></span>
+              <input
+                id="searchInput"
+                type="search"
+                placeholder="例如：价格贵、物超所值、中考提分、孩子主动学习、推荐朋友"
+              />
+            </div>
+            <div class="filter-grid">
+              <label class="field">
+                <span>所属学段</span>
+                <select id="stageFilter">
+                  <option value="">全部</option>
+                  <option value="小学">小学</option>
+                  <option value="初中">初中</option>
+                  <option value="高中">高中</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>具体年级</span>
+                <select id="gradeFilter">
+                  <option value="">全部</option>
+                  <option value="一年级">一年级</option>
+                  <option value="二年级">二年级</option>
+                  <option value="三年级">三年级</option>
+                  <option value="四年级">四年级</option>
+                  <option value="五年级">五年级</option>
+                  <option value="六年级">六年级</option>
+                  <option value="初一">初一</option>
+                  <option value="初二">初二</option>
+                  <option value="初三">初三</option>
+                  <option value="高一">高一</option>
+                  <option value="高二">高二</option>
+                  <option value="高三">高三</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>图片类型</span>
+                <select id="imageTypeFilter">
+                  <option value="">全部</option>
+                  <option value="好评">好评</option>
+                  <option value="异议">异议</option>
+                  <option value="学生没钱/跟家长沟通">学生没钱/跟家长沟通</option>
+                  <option value="教育理念/老师推荐图">教育理念/老师推荐图</option>
+                  <option value="报过辅导班对比图">报过辅导班对比图</option>
+                  <option value="竞品对比">竞品对比</option>
+                  <option value="平板">平板</option>
+                  <option value="成交确认">成交确认</option>
+                  <option value="其他">其他</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>排序</span>
+                <select id="sortSelect">
+                  <option value="relevance">综合相关</option>
+                  <option value="latest">最新上传</option>
+                  <option value="used">使用最多</option>
+                </select>
+              </label>
+            </div>
+            <div class="tag-filter-row" id="tagFilters"></div>
+          </div>
+
+          <div class="result-toolbar">
+            <div>
+              <strong id="resultCount">0</strong>
+              <span>条素材</span>
+            </div>
+            <button class="ghost-button small" id="clearFiltersBtn" type="button">
+              <span class="icon" data-icon="x"></span>
+              <span>清空筛选</span>
+            </button>
+          </div>
+
+          <div class="results-grid" id="resultsGrid"></div>
+        </section>
+
+        <section class="view" id="uploadView">
+          <div class="upload-layout">
+            <form class="upload-form" id="uploadForm">
+              <div class="drop-zone" id="dropZone">
+                <input id="imageInput" type="file" accept="image/*" multiple />
+                <span class="icon large" data-icon="image"></span>
+                <strong>上传图片素材</strong>
+                <span>支持多张图片作为同一条素材</span>
+              </div>
+              <div class="preview-strip" id="previewStrip"></div>
+
+              <label class="field">
+                <span>人工标签 *</span>
+                <textarea
+                  id="manualTagInput"
+                  required
+                  rows="4"
+                  placeholder="例如：家长说 5000 块物超所值，愿意推荐给朋友"
+                ></textarea>
+              </label>
+
+              <div class="form-grid">
+                <label class="field">
+                  <span>所属学段</span>
+                  <select id="uploadStage">
+                    <option value="">请选择</option>
+                    <option value="小学">小学</option>
+                    <option value="初中">初中</option>
+                    <option value="高中">高中</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>具体年级</span>
+                  <select id="uploadGrade">
+                    <option value="">请选择</option>
+                    <option value="一年级">一年级</option>
+                    <option value="二年级">二年级</option>
+                    <option value="三年级">三年级</option>
+                    <option value="四年级">四年级</option>
+                    <option value="五年级">五年级</option>
+                    <option value="六年级">六年级</option>
+                    <option value="初一">初一</option>
+                    <option value="初二">初二</option>
+                    <option value="初三">初三</option>
+                    <option value="高一">高一</option>
+                    <option value="高二">高二</option>
+                    <option value="高三">高三</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="field">
+                <span>图片类型</span>
+                <select id="uploadImageType">
+                  <option value="">请选择</option>
+                  <option value="好评">好评</option>
+                  <option value="异议">异议</option>
+                  <option value="学生没钱/跟家长沟通">学生没钱/跟家长沟通</option>
+                  <option value="教育理念/老师推荐图">教育理念/老师推荐图</option>
+                  <option value="报过辅导班对比图">报过辅导班对比图</option>
+                  <option value="竞品对比">竞品对比</option>
+                  <option value="平板">平板</option>
+                  <option value="成交确认">成交确认</option>
+                  <option value="其他">其他</option>
+                </select>
+              </label>
+
+              <label class="field">
+                <span>补充说明</span>
+                <input id="noteInput" type="text" placeholder="例如：优先看红线标注处" />
+              </label>
+
+              <div class="form-actions">
+                <button class="primary-button" type="submit">
+                  <span class="icon" data-icon="upload"></span>
+                  <span>提交入库</span>
+                </button>
+              </div>
+            </form>
+
+            <div class="process-list">
+              <h2>入库后处理</h2>
+              <div class="process-step active">
+                <span>1</span>
+                <div>
+                  <strong>写入飞书多维表</strong>
+                  <p>图片、人工标签、学段、年级先入库。</p>
+                </div>
+              </div>
+              <div class="process-step">
+                <span>2</span>
+                <div>
+                  <strong>进入待分析队列</strong>
+                  <p>状态为待分析，不阻塞上传人。</p>
+                </div>
+              </div>
+              <div class="process-step">
+                <span>3</span>
+                <div>
+                  <strong>批量生成检索字段</strong>
+                  <p>OCR、重点文字、标签、关键词、证据句、推荐话术。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="queueView">
+          <div class="queue-header">
+            <div>
+              <h2>分析队列</h2>
+              <p>后台按批次处理待分析素材，失败记录可重新进入队列。</p>
+            </div>
+            <button class="primary-button" id="queueRunBtn" type="button">
+              <span class="icon" data-icon="spark"></span>
+              <span>执行本批次</span>
+            </button>
+          </div>
+          <div class="queue-table">
+            <div class="queue-row head">
+              <span>素材</span>
+              <span>人工标签</span>
+              <span>状态</span>
+              <span>入库时间</span>
+            </div>
+            <div id="queueRows"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="app.js?v=20260822-wecom-html-plain-copy"></script>
+  </body>
+</html>
