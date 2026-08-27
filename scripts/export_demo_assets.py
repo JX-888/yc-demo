@@ -324,7 +324,7 @@ def main() -> int:
                     "manualTag": cell_text(fields.get("人工标签"))
                     or cell_text(fields.get("AI证据句"))
                     or cell_text(fields.get("AI内容总结"))[:80],
-                    "stage": cell_text(fields.get("所属学段")) or "初中",
+                    "stage": cell_text(fields.get("所属学段")),
                     "grade": cell_text(fields.get("具体年级")) or "",
                     "imageType": image_type,
                     "aiTags": ai_tags,

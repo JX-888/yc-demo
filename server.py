@@ -10,6 +10,8 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import urllib.parse
 import urllib.error
 import urllib.request
@@ -51,23 +53,27 @@ class AppConfig:
         self.note_field = os.environ.get("FEISHU_NOTE_FIELD", "补充说明")
         self.status_field = os.environ.get("FEISHU_STATUS_FIELD", "AI分析状态")
 
-        wiki_token, direct_app_token, table_id, view_id = parse_feishu_url(self.feishu_url)
-        if not self.feishu_url:
-            raise FeishuError("Please set FEISHU_BITABLE_URL before starting the server")
-        if not table_id:
-            raise FeishuError("FEISHU_BITABLE_URL must include table=...")
-
-        self.wiki_token = wiki_token
-        self.direct_app_token = direct_app_token
-        self.table_id = table_id
-        self.view_id = view_id
+        self.wiki_token: Optional[str] = None
+        self.direct_app_token: Optional[str] = None
+        self.table_id: Optional[str] = None
+        self.view_id: Optional[str] = None
+        if self.feishu_url:
+            wiki_token, direct_app_token, table_id, view_id = parse_feishu_url(self.feishu_url)
+            self.wiki_token = wiki_token
+            self.direct_app_token = direct_app_token
+            self.table_id = table_id
+            self.view_id = view_id
         self.tenant_token: Optional[str] = None
         self.app_token: Optional[str] = None
         self.fields_by_name: Dict[str, Dict[str, Any]] = {}
 
     def ensure_ready(self) -> None:
+        if not self.feishu_url:
+            raise FeishuError("Please set FEISHU_BITABLE_URL before using Feishu APIs")
+        if not self.table_id:
+            raise FeishuError("FEISHU_BITABLE_URL must include table=...")
         if not self.app_id or not self.app_secret:
-            raise FeishuError("Please set FEISHU_APP_ID and FEISHU_APP_SECRET before starting the server")
+            raise FeishuError("Please set FEISHU_APP_ID and FEISHU_APP_SECRET before using Feishu APIs")
         if not self.tenant_token:
             self.tenant_token = get_tenant_access_token(self.app_id, self.app_secret)
         if not self.app_token:
@@ -93,6 +99,8 @@ class AppConfig:
 
 
 CONFIG: Optional[AppConfig] = None
+SYNC_LOCK = threading.Lock()
+SYNC_LAST_AT = 0.0
 
 
 def ensure_text_fields(
@@ -224,14 +232,7 @@ class MaterialHandler(SimpleHTTPRequestHandler):
             self.write_json({"ok": True})
             return
         if self.path.startswith("/api/materials"):
-            materials = WEB_DIR / "assets" / "materials.json"
-            if materials.exists():
-                self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(materials.read_bytes())
-                return
-            self.write_json([])
+            self.handle_get_materials()
             return
         super().do_GET()
 
@@ -243,6 +244,29 @@ class MaterialHandler(SimpleHTTPRequestHandler):
             self.handle_analyze()
             return
         self.send_error(HTTPStatus.NOT_FOUND)
+
+    def handle_get_materials(self) -> None:
+        sync_error = ""
+        try:
+            config = CONFIG
+            if config is not None and should_sync_on_materials_get():
+                export_materials(config, timeout=900)
+        except Exception as exc:
+            sync_error = str(exc)
+
+        materials = WEB_DIR / "assets" / "materials.json"
+        if materials.exists():
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            if sync_error:
+                self.send_header("X-Material-Sync-Error", urllib.parse.quote(sync_error[:500]))
+            self.end_headers()
+            self.wfile.write(materials.read_bytes())
+            return
+        if sync_error:
+            self.write_json({"ok": False, "error": sync_error}, status=HTTPStatus.BAD_REQUEST)
+            return
+        self.write_json([])
 
     def handle_create_material(self) -> None:
         try:
@@ -316,12 +340,7 @@ class MaterialHandler(SimpleHTTPRequestHandler):
             manual_tag = str(body.get("manualTag") or "").strip()
             limit = clamp_int(body.get("limit"), default=3, minimum=1, maximum=20)
 
-            env = os.environ.copy()
-            env["FEISHU_APP_ID"] = config.app_id
-            env["FEISHU_APP_SECRET"] = config.app_secret
-            env.setdefault("PYTHONUNBUFFERED", "1")
-            env.setdefault("PYTHONPYCACHEPREFIX", "/tmp/python-pycache")
-            env.setdefault("CLANG_MODULE_CACHE_PATH", "/tmp/clang-module-cache")
+            env = build_feishu_env(config)
 
             enrich_cmd = [
                 sys.executable,
@@ -353,23 +372,7 @@ class MaterialHandler(SimpleHTTPRequestHandler):
                 enrich_cmd.extend(["--status-values", "待分析,分析失败"])
 
             enrich_result = run_local_command(enrich_cmd, env=env, timeout=900)
-
-            export_cmd = [
-                sys.executable,
-                str(SCRIPTS_DIR / "export_demo_assets.py"),
-                "--url",
-                config.feishu_url,
-                "--image-field",
-                config.image_field,
-                "--limit",
-                "0",
-                "--max-images-per-record",
-                "0",
-                "--continue-on-error",
-                "--reuse-existing-images",
-                "--ignore-view",
-            ]
-            export_result = run_local_command(export_cmd, env=env, timeout=900)
+            export_result = export_materials(config, timeout=900, force=True)
 
             processed, failed = parse_done_line(enrich_result["output"])
             self.write_json(
@@ -433,6 +436,14 @@ def clamp_int(value: Any, default: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(maximum, number))
 
 
+def clamp_float(value: Any, default: float, minimum: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = default
+    return max(minimum, number)
+
+
 def run_local_command(command: List[str], env: Dict[str, str], timeout: int) -> Dict[str, Any]:
     completed = subprocess.run(
         command,
@@ -447,6 +458,53 @@ def run_local_command(command: List[str], env: Dict[str, str], timeout: int) -> 
     if completed.returncode != 0:
         raise FeishuError(tail_text(output, 24) or f"Command failed with exit code {completed.returncode}")
     return {"returncode": completed.returncode, "output": output}
+
+
+def build_feishu_env(config: AppConfig) -> Dict[str, str]:
+    env = os.environ.copy()
+    env["FEISHU_APP_ID"] = config.app_id
+    env["FEISHU_APP_SECRET"] = config.app_secret
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    env.setdefault("PYTHONPYCACHEPREFIX", "/tmp/python-pycache")
+    env.setdefault("CLANG_MODULE_CACHE_PATH", "/tmp/clang-module-cache")
+    return env
+
+
+def should_sync_on_materials_get() -> bool:
+    value = os.environ.get("FEISHU_SYNC_ON_GET", "1").strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def export_materials(config: AppConfig, timeout: int = 900, force: bool = False) -> Dict[str, Any]:
+    global SYNC_LAST_AT
+    if not force and not should_sync_on_materials_get():
+        return {"returncode": 0, "output": "SKIP sync disabled"}
+
+    interval = clamp_float(os.environ.get("FEISHU_SYNC_INTERVAL_SECONDS"), default=0.0, minimum=0.0)
+    with SYNC_LOCK:
+        now = time.time()
+        if not force and interval and now - SYNC_LAST_AT < interval:
+            return {"returncode": 0, "output": "SKIP sync interval"}
+
+        config.ensure_ready()
+        export_cmd = [
+            sys.executable,
+            str(SCRIPTS_DIR / "export_demo_assets.py"),
+            "--url",
+            config.feishu_url,
+            "--image-field",
+            config.image_field,
+            "--limit",
+            "0",
+            "--max-images-per-record",
+            "0",
+            "--continue-on-error",
+            "--reuse-existing-images",
+            "--ignore-view",
+        ]
+        result = run_local_command(export_cmd, env=build_feishu_env(config), timeout=timeout)
+        SYNC_LAST_AT = time.time()
+        return result
 
 
 def parse_done_line(output: str) -> tuple[int, int]:
@@ -468,9 +526,8 @@ def tail_text(text: str, line_count: int) -> str:
 def main() -> int:
     global CONFIG
     CONFIG = AppConfig()
-    CONFIG.ensure_ready()
     port = int(os.environ.get("PORT", "8787"))
-    host = os.environ.get("HOST", "127.0.0.1")
+    host = os.environ.get("HOST", "0.0.0.0")
     server = ThreadingHTTPServer((host, port), MaterialHandler)
     cert_file = os.environ.get("HTTPS_CERT_FILE", "")
     key_file = os.environ.get("HTTPS_KEY_FILE", "")

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>洋葱素材库</title>
-    <link rel="stylesheet" href="styles.css?v=20260822-hybrid-search" />
+    <link rel="stylesheet" href="styles.css?v=20260827-objection-search" />
   </head>
   <body>
     <div class="app-shell">
@@ -74,48 +74,18 @@
               />
             </div>
             <div class="filter-grid">
-              <label class="field">
+              <div class="field">
                 <span>所属学段</span>
-                <select id="stageFilter">
-                  <option value="">全部</option>
-                  <option value="小学">小学</option>
-                  <option value="初中">初中</option>
-                  <option value="高中">高中</option>
-                </select>
-              </label>
-              <label class="field">
+                <div class="multi-filter" id="stageFilter"></div>
+              </div>
+              <div class="field">
                 <span>具体年级</span>
-                <select id="gradeFilter">
-                  <option value="">全部</option>
-                  <option value="一年级">一年级</option>
-                  <option value="二年级">二年级</option>
-                  <option value="三年级">三年级</option>
-                  <option value="四年级">四年级</option>
-                  <option value="五年级">五年级</option>
-                  <option value="六年级">六年级</option>
-                  <option value="初一">初一</option>
-                  <option value="初二">初二</option>
-                  <option value="初三">初三</option>
-                  <option value="高一">高一</option>
-                  <option value="高二">高二</option>
-                  <option value="高三">高三</option>
-                </select>
-              </label>
-              <label class="field">
+                <div class="multi-filter" id="gradeFilter"></div>
+              </div>
+              <div class="field">
                 <span>图片类型</span>
-                <select id="imageTypeFilter">
-                  <option value="">全部</option>
-                  <option value="好评">好评</option>
-                  <option value="异议">异议</option>
-                  <option value="学生没钱/跟家长沟通">学生没钱/跟家长沟通</option>
-                  <option value="教育理念/老师推荐图">教育理念/老师推荐图</option>
-                  <option value="报过辅导班对比图">报过辅导班对比图</option>
-                  <option value="竞品对比">竞品对比</option>
-                  <option value="平板">平板</option>
-                  <option value="成交确认">成交确认</option>
-                  <option value="其他">其他</option>
-                </select>
-              </label>
+                <div class="multi-filter" id="imageTypeFilter"></div>
+              </div>
               <label class="field">
                 <span>排序</span>
                 <select id="sortSelect">
@@ -166,12 +136,13 @@
               <div class="form-grid">
                 <label class="field">
                   <span>所属学段</span>
-                  <select id="uploadStage">
-                    <option value="">请选择</option>
-                    <option value="小学">小学</option>
-                    <option value="初中">初中</option>
-                    <option value="高中">高中</option>
-                  </select>
+	                  <select id="uploadStage">
+	                    <option value="">请选择</option>
+	                    <option value="通用">通用</option>
+	                    <option value="小学">小学</option>
+	                    <option value="初中">初中</option>
+	                    <option value="高中">高中</option>
+	                  </select>
                 </label>
                 <label class="field">
                   <span>具体年级</span>
@@ -274,6 +245,6 @@
     </div>
 
     <div class="toast" id="toast"></div>
-    <script src="app.js?v=20260822-wecom-html-plain-copy"></script>
+    <script src="app.js?v=20260827-objection-search"></script>
   </body>
 </html>

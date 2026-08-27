@@ -135,6 +135,101 @@ SCENARIO_RULES = [
     ("引导续费或长期学习时", ["三年", "高中三年", "继续", "衔接课"]),
 ]
 
+COMPETITOR_WORDS = ["科大讯飞", "作业帮", "猿辅导", "学而思", "高途", "步步高", "辅导班", "一对一", "学习机", "平板"]
+
+PRODUCT_EXPLAINER_CUES = [
+    "课程",
+    "课堂",
+    "APP",
+    "洋葱学园",
+    "葱学",
+    "每学园",
+    "人机交互",
+    "互动",
+    "精品短动画",
+    "短动画",
+    "场景化",
+    "学习不费力",
+    "找图形的规律",
+    "重复出现",
+    "分析与解答",
+    "知识点清单",
+    "知识点",
+    "知识讲解",
+    "典例剖析",
+    "板书",
+    "模块",
+    "大课",
+    "课程已升级",
+    "漯程已升级",
+    "同步课",
+    "视频",
+    "颗粒度",
+    "可视化",
+    "画面",
+    "大量刷题",
+    "口诀",
+    "套路",
+    "死记硬背",
+    "讲得更清",
+    "讲得更清楚",
+    "互动性",
+    "趣味性",
+    "题目类型",
+    "方法总结",
+    "解题",
+    "例题",
+    "题型",
+    "达标检测",
+    "课前预习",
+    "函数",
+    "图形",
+    "物理",
+    "化学",
+    "数学",
+    "观察",
+    "猜想",
+    "验证",
+]
+
+PRODUCT_EXPLAINER_STRONG_CUES = [
+    "同一个知识点",
+    "洋葱讲得更清",
+    "洋葱讲得更清楚",
+    "独立教研体系",
+    "人机交互课程",
+    "课程颗粒度",
+    "直播大课",
+    "只分两个大模块",
+    "直接给学生输出口诀",
+    "大量刷题",
+    "知识点清单",
+]
+
+COMPETITOR_FEEDBACK_CUES = [
+    "谢谢老师",
+    "感谢",
+    "我相信",
+    "后悔",
+    "没用",
+    "没啥用",
+    "白买",
+    "买了",
+    "卖了",
+    "下载QQ",
+    "会员号",
+    "付款",
+    "报名",
+    "转账",
+    "推荐给",
+    "成绩",
+    "排名",
+    "考上",
+    "提升",
+    "进步",
+    "物超所值",
+]
+
 STOP_WORDS = {
     "老师",
     "孩子",
@@ -750,6 +845,136 @@ def subject_phrase(text: str) -> str:
     return "、".join(subjects[:3])
 
 
+def competitor_brand(source: str) -> str:
+    for word in COMPETITOR_WORDS:
+        if word in source:
+            return word
+    return ""
+
+
+def cue_score(source: str, cues: List[str]) -> int:
+    return sum(1 for cue in cues if cue in source)
+
+
+def is_product_explainer_pitch(
+    facts: List[str],
+    tags: List[str],
+    image_type: str,
+    source: str,
+) -> bool:
+    if image_type != "竞品对比":
+        return False
+    combined = "\n".join(facts + tags + [source])
+    product_score = cue_score(combined, PRODUCT_EXPLAINER_CUES)
+    if product_score < 2:
+        plain_competitor_label = len(facts) == 1 and facts[0] in COMPETITOR_WORDS
+        feedback_source = "\n".join(facts + [source])
+        return plain_competitor_label and product_score >= 1 and cue_score(feedback_source, COMPETITOR_FEEDBACK_CUES) == 0
+    feedback_source = "\n".join(facts + [source])
+    feedback_score = cue_score(feedback_source, COMPETITOR_FEEDBACK_CUES)
+    if feedback_score and product_score < 4 and not contains_any(combined, PRODUCT_EXPLAINER_STRONG_CUES):
+        return False
+    return True
+
+
+def product_explainer_intro(source: str, seed: str) -> str:
+    brand = competitor_brand(source)
+    if brand:
+        return choose_variant(
+            seed + "|product-explainer-intro-brand",
+            [
+                f"您可以先看这个课程对比，重点不是单纯比较{brand}和洋葱哪个名字更响，而是看课程设计和讲解方式对孩子是否真的友好。",
+                f"如果您也在对比{brand}这类产品，可以重点看课程本身。孩子最后能不能学进去，关键还是内容讲得清不清楚、孩子愿不愿意持续学。",
+                f"这个对比您可以看一下，同样是讲知识点，洋葱更强调让孩子先听懂、愿意学，再配合练习去巩固。",
+            ],
+        )
+    return choose_variant(
+        seed + "|product-explainer-intro",
+        [
+            "您可以先看这个课程展示，重点是洋葱不是让孩子自己硬学，而是把知识点拆开讲，让孩子更容易跟上。",
+            "这个课程画面您可以看一下，洋葱更强调把抽象知识讲直观，让孩子先听懂，再去做题巩固。",
+            "您可以先看这个课程内容，核心不是堆题量，而是把孩子卡住的知识点讲清楚、练到位。",
+        ],
+    )
+
+
+def product_explainer_detail(source: str, seed: str) -> str:
+    if contains_any(source, ["人机交互", "互动", "找图形的规律", "重复出现", "分析与解答"]):
+        return choose_variant(
+            seed + "|product-explainer-interactive",
+            [
+                "像图里这种内容，洋葱会引导孩子先观察规律、再一步步分析答案，孩子不是被动看结论，而是在跟着课程思考。",
+                "这种互动课程的好处是孩子能一边看一边参与，先把思路走通，再做题就不容易只靠蒙或者死记。",
+                "洋葱会把观察、归纳和解题步骤拆开，让孩子知道每一步为什么这么做，比单纯看答案更容易吸收。",
+            ],
+        )
+    if contains_any(source, ["精品短动画", "短动画", "场景化", "学习不费力", "有趣", "趣味性"]):
+        return choose_variant(
+            seed + "|product-explainer-animation",
+            [
+                "对孩子来说，愿意打开学很关键。洋葱用短动画和场景化方式讲知识点，降低理解门槛，也更容易坚持每天学一点。",
+                "很多孩子不是不想学，是内容太枯燥就容易放弃。洋葱把课程做得更直观、更有参与感，孩子更容易愿意学下去。",
+                "先让孩子觉得课程能听懂、能跟上，后面复习和练习才会真正发生，洋葱的优势就在这个持续学习的过程里。",
+            ],
+        )
+    if contains_any(source, ["大量刷题", "口诀", "套路", "死记硬背"]):
+        return choose_variant(
+            seed + "|product-explainer-rote",
+            [
+                "比起直接让孩子背口诀、刷大量题，洋葱更强调先理解底层知识点，再通过练习巩固，这样孩子遇到变式题也更有思路。",
+                "只靠刷题和背套路，孩子短期可能会做一两道题，但知识点不通还是容易换个题就卡住。洋葱会先把原理讲明白。",
+                "洋葱不是让孩子机械记结论，而是把知识点讲透，再让孩子练对应题型，这样补弱科会更稳。",
+            ],
+        )
+    if contains_any(source, ["板书", "分类讨论", "颜色", "清晰", "明确", "重点"]):
+        return choose_variant(
+            seed + "|product-explainer-board",
+            [
+                "复杂题最怕孩子跟丢步骤，洋葱会把板书、颜色和解题过程拆清楚，孩子知道先看什么、再算什么，学习会更有方向。",
+                "这种内容不是简单把答案放出来，而是把分类、步骤和关键点标清楚，孩子听课时更容易抓住重点。",
+                "洋葱会把复杂知识点拆成孩子能跟上的步骤，减少听不懂、记不住、做题没思路的问题。",
+            ],
+        )
+    if contains_any(source, ["模块", "课程已升级", "同步课", "视频", "颗粒度", "哪里不会点哪里"]):
+        return choose_variant(
+            seed + "|product-explainer-module",
+            [
+                "洋葱的课程颗粒度会更细，哪里不会就点哪里学，不用孩子一上来跟很长的大课，查缺补漏会更精准。",
+                "同步课拆得细的好处是孩子可以按薄弱点补，不会的地方反复看，学会后再配合练习巩固。",
+                "如果孩子基础有断层，洋葱这种按模块拆开的课程更适合补漏，先把不会的点补上，再往后学会更顺。",
+            ],
+        )
+    return choose_variant(
+        seed + "|product-explainer-detail",
+        [
+            "洋葱的核心优势是把知识点讲得更细、更直观，再配合练习和复习，帮助孩子从听懂到会做逐步补起来。",
+            "真正影响效果的不是买了哪个工具，而是孩子能不能持续学进去。洋葱会把课程、练习和查缺补漏串起来。",
+            "孩子学习最怕只看热闹、没真正掌握，洋葱会把知识点拆开讲，再通过练习把薄弱点补实。",
+        ],
+    )
+
+
+def product_explainer_question(source: str, seed: str) -> str:
+    subjects = subject_phrase(source)
+    if subjects and "、" not in subjects:
+        return choose_variant(
+            seed + "|product-explainer-question-subject",
+            [
+                f"孩子现在{subjects}是听课理解比较吃力，还是做题不知道怎么下手呀？",
+                f"您看要不要我先帮孩子看看，{subjects}用洋葱从哪个模块开始补更合适呀？",
+                f"孩子现在{subjects}最卡的是基础知识，还是题型应用呀？",
+            ],
+        )
+    return choose_variant(
+        seed + "|product-explainer-question",
+        [
+            "孩子现在是更需要先把知识点讲懂，还是更需要我帮他把不会的内容按模块补起来呀？",
+            "您看要不要我结合孩子现在薄弱科目，给您看看洋葱怎么安排学习路径更合适？",
+            "孩子现在最卡的是听不懂课，还是做题时不知道怎么下手呀？",
+        ],
+    )
+
+
 def fact_paragraph(facts: List[str], seed: str) -> str:
     if not facts:
         return choose_variant(
@@ -965,9 +1190,14 @@ def make_pitch(
         if line and line != "未提取到明确证据句" and len(line) >= 6 and re.search(r"[\u4e00-\u9fff]", line)
     ]
     facts = pitch_facts(trusted_text, manual_text, useful_evidence)
-    fact = fact_paragraph(facts, trusted_text)
-    product = product_paragraph(facts, tags, image_type, trusted_text)
-    question = closing_question(facts, tags, image_type, trusted_text)
+    if is_product_explainer_pitch(facts, tags, image_type, trusted_text):
+        fact = product_explainer_intro(trusted_text, trusted_text)
+        product = product_explainer_detail(trusted_text, trusted_text)
+        question = product_explainer_question(trusted_text, trusted_text)
+    else:
+        fact = fact_paragraph(facts, trusted_text)
+        product = product_paragraph(facts, tags, image_type, trusted_text)
+        question = closing_question(facts, tags, image_type, trusted_text)
     if not question.endswith("？"):
         question = question.rstrip("。！？!?") + "？"
     return f"{fact}\n\n{product}\n\n{question}"
